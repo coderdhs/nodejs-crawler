@@ -15,10 +15,14 @@ const crawler = async () => {
         try {
           const page = await browser.newPage();
           await page.goto(r[1]);
-          const scoreEl = await page.$(".score.score_left .star_score");
-          if (scoreEl) {
-            const text = await page.evaluate(tag => tag.textContent, scoreEl);
-            // console.log(r[0], "평점", text.trim());
+          const text = await page.evaluate(() => { // return 값을 text로 받는다
+            // evaluate를 먼저쓰면 한번만 쓰고 깔끔하게 태그들을 모을 수 있다. 그리고 안에서 DOM 사용가능
+            const score = document.querySelector(".score.score_left .star_score");
+            if (score) {
+              return score.textContent;
+            }
+          });
+          if (text) {
             result[i] = [r[0], r[1], text.trim()]; // data.csv 순서 그대로 유지
           }
           await page.waitFor(3000);
