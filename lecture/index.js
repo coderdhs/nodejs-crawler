@@ -1,40 +1,36 @@
-const parse = require("csv-parse/lib/sync");
-const fs = require("fs");
+const xlsx = require("xlsx");
 const puppeteer = require("puppeteer");
+const add_to_sheet = require("./add_to_sheet");
 
-const csv = fs.readFileSync("csv/data.csv");
-const records = parse(csv.toString("utf-8"));
+const workbook = xlsx.readFile("xlsx/data.xlsx");
+const ws = workbook.Sheets.영화목록;
+const records = xlsx.utils.sheet_to_json(ws);
 
 const crawler = async () => {
   try {
-    const result = [];
     const browser = await puppeteer.launch({ headless: process.env.NODE_ENV === "production" });
-    // false일때 화면이 보임(개발중), 배포시에는 true
-    await Promise.all(
-      records.map(async (r, i) => {
-        try {
-          const page = await browser.newPage();
-          await page.goto(r[1]);
-          const text = await page.evaluate(() => { // return 값을 text로 받는다
-            // evaluate를 먼저쓰면 한번만 쓰고 깔끔하게 태그들을 모을 수 있다. 그리고 안에서 DOM 사용가능
-            const score = document.querySelector(".score.score_left .star_score");
-            if (score) {
-              return score.textContent;
-            }
-          });
-          if (text) {
-            result[i] = [r[0], r[1], text.trim()]; // data.csv 순서 그대로 유지
-          }
-          await page.waitFor(3000);
-          await page.close();
-        } catch (err) {
-          console.error(err);
-        }
-      })
+    const page = await browser.newPage();
+    await page.setUserAgent(
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.117 Safari/537.36"
     );
+    add_to_sheet(ws, "C1", "s", "평점");
+    for (const [i, r] of records.entries()) {
+      await page.goto(r.링크);
+      const text = await page.evaluate(() => {
+        const score = document.querySelector(".score.score_left .star_score");
+        if (score) {
+          return score.textContent;
+        }
+      });
+      if (text) {
+        const newCell = "C" + (i + 2);
+        add_to_sheet(ws, newCell, "n", parseFloat(text.trim()));
+      }
+      await page.waitFor(1000);
+    }
+    await page.close();
     await browser.close();
-    const str = stringify(result);
-    fs.writeFileSync("csv/result.csv", str);
+    xlsx.writeFile(workbook, "xlsx/result.xlsx");
   } catch (err) {
     console.error(err);
   }
