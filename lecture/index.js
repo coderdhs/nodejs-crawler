@@ -1,48 +1,25 @@
-const xlsx = require("xlsx");
-const axios = require("axios"); // ajax 라이브러리 : html 요청
-const cheerio = require("cheerio"); // html 파싱
-const add_to_sheet = require("./add_to_sheet");
+const parse = require("csv-parse/lib/sync");
+const fs = require("fs");
+const puppeteer = require("puppeteer");
 
-const workbook = xlsx.readFile("xlsx/data.xlsx");
-const ws = workbook.Sheets.영화목록;
-const records = xlsx.utils.sheet_to_json(ws);
-
-/* for (const [i, r] of records.entries()) {
-  console.log(i, r.제목, r.링크);
-} */
-
-// console.log(records);
+const csv = fs.readFileSync("csv/data.csv");
+const records = parse(csv.toString("utf-8"));
 
 const crawler = async () => {
-  add_to_sheet(ws, "C1", "s", "평점");
-  for (const [i, r] of records.entries()) {
-    // 순서를 보장. 속도느림.
-    const response = await axios.get(r.링크);
-    if (response.status === 200) {
-      // 응답이 성공한 경우
-      const html = response.data;
-      // console.log(html);
-      const $ = cheerio.load(html);
-      const text = $(".score.score_left .star_score").text();
-      console.log(r.제목, "평점", text.trim());
-      const newCell = "C" + (i + 2);
-      add_to_sheet(ws, newCell, "n", parseFloat(text.trim()));
-    }
-  }
-  xlsx.writeFile(workbook, "xlsx/result.xlsx");
-  /*   await Promise.all( // 순서를 보장하지 않음. 속도빠름.
-    records.map(async r => {
-      const response = await axios.get(r.링크);
-      if (response.status === 200) {
-        // 응답이 성공한 경우
-        const html = response.data;
-        // console.log(html);
-        const $ = cheerio.load(html);
-        const text = $(".score.score_left .star_score").text();
-        console.log(r.제목, "평점", text.trim());
-      }
-    })
-  ); */
+  const browser = await puppeteer.launch({ headless: false });
+  const page = await browser.newPage();
+  const page2 = await browser.newPage();
+  const page3 = await browser.newPage();
+  await page.goto("https://zerocho.com");
+  await page2.goto("https://naver.com");
+  await page3.goto("https://google.com");
+  await page.waitFor(3000);
+  await page2.waitFor(1000);
+  await page3.waitFor(2000);
+  await page.close();
+  await page2.close();
+  await page3.close();
+  await browser.close();
 };
 
 crawler();
