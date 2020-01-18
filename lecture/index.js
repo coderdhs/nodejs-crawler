@@ -6,16 +6,20 @@ const csv = fs.readFileSync("csv/data.csv");
 const records = parse(csv.toString("utf-8"));
 
 const crawler = async () => {
-  const browser = await puppeteer.launch({ headless: false });
-  const page = await browser.newPage();
-  const page2 = await browser.newPage();
-  const page3 = await browser.newPage();
-  await page.goto("https://zerocho.com");
-  await page2.goto("https://naver.com");
-  await page3.goto("https://google.com");
-  await page.waitFor(3000);
-  await page2.waitFor(1000);
-  await page3.waitFor(2000);
+  const browser = await puppeteer.launch({ headless: process.env.NODE_ENV === "production" });
+  // false일때 화면이 보임(개발중), 배포시에는 true
+
+  const [page, page2, page3] = await Promise.all([
+    await browser.newPage(),
+    await browser.newPage(),
+    await browser.newPage()
+  ]);
+  await Promise.all([
+    page.goto("https://zerocho.com"),
+    page2.goto("https://naver.com"),
+    page3.goto("https://google.com")
+  ]);
+  await Promise.all([page.waitFor(3000), page2.waitFor(1000), page3.waitFor(2000)]);
   await page.close();
   await page2.close();
   await page3.close();
