@@ -6,24 +6,30 @@ const csv = fs.readFileSync("csv/data.csv");
 const records = parse(csv.toString("utf-8"));
 
 const crawler = async () => {
-  const browser = await puppeteer.launch({ headless: process.env.NODE_ENV === "production" });
-  // false일때 화면이 보임(개발중), 배포시에는 true
-
-  const [page, page2, page3] = await Promise.all([
-    await browser.newPage(),
-    await browser.newPage(),
-    await browser.newPage()
-  ]);
-  await Promise.all([
-    page.goto("https://zerocho.com"),
-    page2.goto("https://naver.com"),
-    page3.goto("https://google.com")
-  ]);
-  await Promise.all([page.waitFor(3000), page2.waitFor(1000), page3.waitFor(2000)]);
-  await page.close();
-  await page2.close();
-  await page3.close();
-  await browser.close();
+  try {
+    const browser = await puppeteer.launch({ headless: process.env.NODE_ENV === "production" });
+    // false일때 화면이 보임(개발중), 배포시에는 true
+    await Promise.all(
+      records.map(async (r, i) => {
+        try {
+          const page = await browser.newPage();
+          await page.goto(r[1]);
+          const scoreEl = await page.$(".score.score_left .star_score");
+          if (scoreEl) {
+            const text = await page.evaluate(tag => tag.textContent, scoreEl);
+            console.log(r[0], "평점", text.trim());
+          }
+          await page.waitFor(3000);
+          await page.close();
+        } catch (err) {
+          console.error(err);
+        }
+      })
+    );
+    await browser.close();
+  } catch (err) {
+    console.error(err);
+  }
 };
 
 crawler();
