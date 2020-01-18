@@ -11,7 +11,18 @@ const records = xlsx.utils.sheet_to_json(ws);
 } */
 
 const crawler = async () => {
-  await Promise.all(
+  for (const [i, r] of records.entries()) { // 순서를 보장. 속도느림.
+    const response = await axios.get(r.링크);
+    if (response.status === 200) {
+      // 응답이 성공한 경우
+      const html = response.data;
+      // console.log(html);
+      const $ = cheerio.load(html);
+      const text = $(".score.score_left .star_score").text();
+      console.log(r.제목, "평점", text.trim());
+    }
+  }
+  /*   await Promise.all( // 순서를 보장하지 않음. 속도빠름.
     records.map(async r => {
       const response = await axios.get(r.링크);
       if (response.status === 200) {
@@ -23,7 +34,7 @@ const crawler = async () => {
         console.log(r.제목, "평점", text.trim());
       }
     })
-  );
+  ); */
 };
 
 crawler();
