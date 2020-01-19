@@ -1,10 +1,26 @@
 const xlsx = require("xlsx");
 const puppeteer = require("puppeteer");
+const axios = require("axios");
+const fs = require("fs");
 const add_to_sheet = require("./add_to_sheet");
 
 const workbook = xlsx.readFile("xlsx/data.xlsx");
 const ws = workbook.Sheets.영화목록;
 const records = xlsx.utils.sheet_to_json(ws);
+
+fs.readdir("screenshot", err => {
+  if (err) {
+    console.error("screenshot folder가 없어 생성함");
+    fs.mkdirSync("screenshot");  // sync 메서드는 프로그램의 처음과 끝에만 쓰기.
+  }
+});
+
+fs.readdir("poster", err => {
+  if (err) {
+    console.error("poster folder가 없어 생성함");
+    fs.mkdirSync("poster");
+  }
+});
 
 const crawler = async () => {
   try {
@@ -16,15 +32,31 @@ const crawler = async () => {
     add_to_sheet(ws, "C1", "s", "평점");
     for (const [i, r] of records.entries()) {
       await page.goto(r.링크);
-      const text = await page.evaluate(() => {
-        const score = document.querySelector(".score.score_left .star_score");
-        if (score) {
-          return score.textContent;
+      const result = await page.evaluate(() => {
+        const scoreEl = document.querySelector(".score.score_left .star_score");
+        let score = "";
+        if (scoreEl) {
+          score = scoreEl.textContent;
         }
+        const imgEl = document.querySelector(".poster img");
+        let img = "";
+        if (imgEl) {
+          img = imgEl.src;
+        }
+        return { score, img };
       });
-      if (text) {
+      if (result.score) {
         const newCell = "C" + (i + 2);
-        add_to_sheet(ws, newCell, "n", parseFloat(text.trim()));
+        add_to_sheet(ws, newCell, "n", parseFloat(result.score.trim()));
+      }
+      if (result.img) {
+        const imgResult = await axios.get(
+          result.img.replace(/\?.*$/, ""), // 쿼리스트링(?부터 끝까지) 제거 정규표현식
+          {
+            responseType: "arraybuffer" //buffer가 연속적으로 들어있는 자료구조
+          }
+        );
+        fs.writeFileSync(`poster/${r.제목}.jpg`, imgResult.data);
       }
       await page.waitFor(1000);
     }
