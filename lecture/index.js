@@ -11,7 +11,7 @@ const records = xlsx.utils.sheet_to_json(ws);
 fs.readdir("screenshot", err => {
   if (err) {
     console.error("screenshot folder가 없어 생성함");
-    fs.mkdirSync("screenshot");  // sync 메서드는 프로그램의 처음과 끝에만 쓰기.
+    fs.mkdirSync("screenshot"); // sync 메서드는 프로그램의 처음과 끝에만 쓰기.
   }
 });
 
@@ -24,8 +24,16 @@ fs.readdir("poster", err => {
 
 const crawler = async () => {
   try {
-    const browser = await puppeteer.launch({ headless: process.env.NODE_ENV === "production" });
+    const browser = await puppeteer.launch({
+      headless: process.env.NODE_ENV === "production",
+      args: ["--window-size=1920,1080"] // browser크기
+    });
     const page = await browser.newPage();
+    await page.setViewport({
+      // 화면 크기
+      width: 1920,
+      height: 1920
+    });
     await page.setUserAgent(
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.117 Safari/537.36"
     );
@@ -50,6 +58,16 @@ const crawler = async () => {
         add_to_sheet(ws, newCell, "n", parseFloat(result.score.trim()));
       }
       if (result.img) {
+        await page.screenshot({
+          path: `screenshot/${r.제목}.png`,
+          // fullpage: true,
+          clip: {
+            x: 100,
+            y: 100,
+            width: 300,
+            height: 300
+          }
+        });
         const imgResult = await axios.get(
           result.img.replace(/\?.*$/, ""), // 쿼리스트링(?부터 끝까지) 제거 정규표현식
           {
