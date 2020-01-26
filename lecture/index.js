@@ -5,74 +5,92 @@ const db = require("./models");
 dotenv.config();
 
 const crawler = async () => {
-  await db.sequelize.sync(); // 크롤러 돌리면서 디비연결
   try {
-    let browser = await puppeteer.launch({
+    await db.sequelize.sync(); // 크롤러 돌리면서 디비연결
+    const browser = await puppeteer.launch({
       headless: false,
       args: ["--window-size=1920,1080", "--disable-notifications"]
     });
-    let page = await browser.newPage();
+    const page = await browser.newPage();
     await page.setViewport({ width: 1080, height: 1080 });
-    await page.goto("http://spys.one/free-proxy-list/KR/");
-    const proxies = await page.evaluate(() => {
-      const ips = Array.from(document.querySelectorAll("tr > td:nth-child(1) > font.spy14")).map(
-        v => v.innerText
-      );
-      const types = Array.from(document.querySelectorAll("tr > td:nth-child(2)"))
-        .slice(4)
-        .map(v => v.textContent);
-      const latencies = Array.from(
-        document.querySelectorAll("tr > td:nth-child(6) > font.spy1")
-      ).map(v => v.textContent);
-      return ips.map((v, i) => {
-        return {
-          ip: v,
-          type: types[i],
-          latency: latencies[i]
-        };
-      });
+    await page.goto("http://facebook.com");
+    const email = process.env.EMAIL;
+    const password = process.env.PASSWORD;
+    await page.type("#email", email);
+    await page.type("#pass", password);
+    await page.waitFor(1000);
+    await page.click("#loginbutton");
+    await page.waitForResponse(response => {
+      return response.url().includes("login_attempt");
     });
-    const filtered = proxies
-      .filter(v => v.type.startsWith("HTTP"))
-      .sort((p, c) => p.latency - c.latency);
+    await page.keyboard.press("Escape");
+    await page.waitForSelector("textarea");
+    await page.click("textarea");
+    await page.waitForSelector("._5rpb");
+    await page.click("._5rpb");
+    await page.keyboard.type("test..");
+    await page.waitForSelector("._69yt  button");
+    await page.waitFor(5000);
+    await page.click("._69yt  button");
+    let result = [];
+    //    while (result.length < 10) {
+    await page.waitForSelector("[id^=hyperfeed_story_id]:first-child"); // hyperfeed_story_id로 시작하는 id, $=, ~= 등도 있음?
+    await page.waitFor(5000);
+    const newPost = await page.evaluate(() => {
+      window.scrollTo(0, 0);
+      const firstFeed = document.querySelector("[id^=hyperfeed_story_id]:first-child");
+      const name = firstFeed.querySelector("h5") && firstFeed.querySelector("h5").textContent;
+      const content =
+        firstFeed.querySelector(".userContent") &&
+        firstFeed.querySelector(".userContent").textContent;
+      const img = firstFeed.querySelector(".mtm img") && firstFeed.querySelector(".mtm img").src;
+      const postId = firstFeed.id.split("_").slice(-1)[0]; //배열에서 마지막 고르기
+      return {
+        name,
+        content,
+        img,
+        postId
+      };
+    });
+    const exist = await db.Facebook.findOne({
+      where: {
+        writer: newPost.name,
+        content: newPost.content
+      }
+    });
+    if (!exist) {
+      result.push(newPost);
+    }
+    const likeBtn = await page.$("[id^=hyperfeed_story_id]:first-child ._666k a");
+    await page.evaluate(like => {
+      const sponsor = document
+        .querySelector("[id^=hyperfeed_story_id]:first-child")
+        .textContent.includes("SpSpSononSsosoSredredSSS");
+      if (!sponsor && like.getAttribute("aria-pressed") === "false") {
+        // 속성을 가져옴
+        like.click();
+      } else if (sponsor && like.getAttribute("aria-pressed") === "true") {
+        like.click();
+      }
+    }, likeBtn);
+    await page.waitFor(1000);
+    await page.evaluate(() => {
+      const firstFeed = document.querySelector("[id^=hyperfeed_story_id]:first-child");
+      firstFeed.parentNode.removeChild(firstFeed);
+      window.scrollBy(0, 200);
+    });
+    await page.waitFor(1000);
+    //    }
     await Promise.all(
-      filtered.map(async v => {
-        return db.Proxy.upsert({
-          // 있는경우에는 수정, 없는경우에는 만듦
-          ip: v.ip,
-          type: v.type,
-          latency: v.latency
+      result.map(r => {
+        return db.Facebook.create({
+          postId: r.postId,
+          media: r.img,
+          writer: r.name,
+          content: r.content
         });
       })
     );
-    await page.close();
-    await browser.close();
-    const fastestProxy = await db.Proxy.findOne({
-      order: [["latency", "ASC"]]
-    });
-    browser = await puppeteer.launch({
-      headless: false,
-      args: [
-        "--window-size=1920,1080",
-        "--disable-notifications",
-        `--proxy-server=${fastestProxy.ip}`,
-        "--ignore-certificate-errors"
-      ]
-    });
-    // const context1 = await browser.createIncognitoBrowserContext(); // 시크릿창
-    // const context2 = await browser.createIncognitoBrowserContext();
-    // const context3 = await browser.createIncognitoBrowserContext();
-    // const page1 = await context1.newPage();
-    // const page2 = await context2.newPage();
-    // const page3 = await context3.newPage();
-    // await page1.goto("");
-    // await page2.goto("");
-    // await page3.goto("");
-    page = await browser.newPage();
-    await page.goto(
-      "https://search.naver.com/search.naver?sm=top_hty&fbm=0&ie=utf8&query=%EB%82%B4+ip"
-    );
-    await page.waitFor(10000);
     await page.close();
     await browser.close();
     await db.sequelize.close();
